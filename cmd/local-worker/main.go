@@ -18,8 +18,12 @@ func main() {
 		serverID = "dev-local"
 	}
 
+	temporalAddress := os.Getenv("TEMPORAL_ADDRESS")
+	if temporalAddress == "" {
+		temporalAddress = "localhost:7233"
+	}
 	c, err := client.Dial(client.Options{
-		HostPort: "localhost:7233",
+		HostPort: temporalAddress,
 	})
 	if err != nil {
 		log.Fatalln("Unable to create Temporal client:", err)
@@ -28,24 +32,22 @@ func main() {
 
 	// Create step handler registry
 	registry := activities.NewStepHandlerRegistry()
-
-	// Register handlers
 	registry.Register("echo", &handlers.EchoHandler{})
 	registry.Register("script", &handlers.ScriptHandler{})
 	registry.Register("sleep", &handlers.SleepHandler{})
 	registry.Register("file_write", &handlers.FileWriteHandler{})
 
-	// Create worker
+	// Create worker listening on server-specific task queue
 	w := worker.New(c, serverID, worker.Options{})
 
-	// Register workflows
+	//Register Workflow
 	w.RegisterWorkflow(workflows.ServerExecutionWorkflow)
 
 	// Register activities
 	stepActivities := activities.NewStepActivities(serverID, registry)
 	w.RegisterActivity(stepActivities)
 
-	log.Printf("Worker started for server: %s with %d registered handlers", serverID, 1)
+	log.Printf("Local worker started for server: %s with %d registered handlers", serverID, 4)
 
 	err = w.Run(worker.InterruptCh())
 	if err != nil {

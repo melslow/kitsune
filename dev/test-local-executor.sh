@@ -9,15 +9,15 @@ WORKER_PID=$!
 sleep 3
 
 echo "Reading test plan..."
-STEPS=$(cat dev/test-plan.json | jq -c '.steps')
+INPUT=$(cat dev/test-plan-local-exec.json)
+
 
 echo "Triggering execution workflow..."
 docker exec kitsune-temporal temporal workflow start \
   --task-queue dev-local \
   --type ServerExecutionWorkflow \
-  --input "dev-local"
-  --input "$steps"
-  --workflow-id test-full-$(date +%s)
+  --input "$INPUT" \
+  --workflow-id test-local-executor-$(date +%s)
 
 sleep 10
 

@@ -1,4 +1,5 @@
 {
+  "serverID": "dev-local",
   "steps": [
     {
       "name": "say-hello",
@@ -22,7 +23,9 @@
       "type": "script",
       "params": {
         "script": "/bin/cat",
-        "args": ["/tmp/kitsune-test.txt"]
+        "args": [
+          "/tmp/kitsune-test.txt"
+        ]
       },
       "required": true
     },

@@ -1,0 +1,40 @@
+{
+  "servers": [
+    "server-1",
+    "server-2",
+    "server-3"
+  ],
+  "steps": [
+    {
+      "name": "start",
+      "type": "echo",
+      "params": {
+        "message": "Starting deployment"
+      },
+      "required": true
+    },
+    {
+      "name": "create-marker",
+      "type": "file_write",
+      "params": {
+        "path": "/tmp/deployment-marker.txt",
+        "content": "Executed through orchestrator'"
+      },
+      "required": true
+    },
+    {
+      "name": "complete",
+      "type": "echo",
+      "params": {
+        "message": "Deployment complete"
+      },
+      "required": true
+    }
+  ],
+  "rolloutStrategy": {
+    "type": "Rolling",
+    "batchSize": 1,
+    "batchDelaySeconds": 20,
+    "maxFailures": 1
+  }
+}

@@ -11,14 +11,14 @@ import (
 )
 
 // ServerExecutionWorkflow executes a list of steps on a single server
-func ServerExecutionWorkflow(ctx workflow.Context, serverID string, steps []models.StepDefinition) (models.ExecutionResult, error) {
+func ServerExecutionWorkflow(ctx workflow.Context, input models.WorkflowInput) (models.ExecutionResult, error) {
 	logger := workflow.GetLogger(ctx)
 	result := models.ExecutionResult{
-		ServerID:      serverID,
+		ServerID:      input.ServerID,
 		StepsExecuted: []models.StepResult{},
 	}
 	
-	logger.Info("Starting execution workflow", "serverID", serverID, "steps", len(steps))
+	logger.Info("Starting execution workflow", "serverID", input.ServerID, "steps", len(input.Steps))
 	
 	// Configure activity options
 	activityOptions := workflow.ActivityOptions{
@@ -35,10 +35,10 @@ func ServerExecutionWorkflow(ctx workflow.Context, serverID string, steps []mode
 	var executedSteps []models.StepDefinition
 	
 	// Execute each step
-	for i, step := range steps {
+	for i, step := range input.Steps {
 		logger.Info("Executing step", "number", i+1, "name", step.Name, "type", step.Type)
 		
-		err := workflow.ExecuteActivity(ctx, "ExecuteStep", serverID, step).Get(ctx, nil)
+		err := workflow.ExecuteActivity(ctx, "ExecuteStep", input.ServerID, step).Get(ctx, nil)
 		
 		stepResult := models.StepResult{
 			Name: step.Name,
@@ -54,7 +54,7 @@ func ServerExecutionWorkflow(ctx workflow.Context, serverID string, steps []mode
 				result.StepsExecuted = append(result.StepsExecuted, stepResult)
 				
 				// Rollback
-				rollbackSteps(ctx, serverID, executedSteps)
+				rollbackSteps(ctx, input.ServerID, executedSteps)
 				return result, err
 			}
 			
@@ -68,7 +68,7 @@ func ServerExecutionWorkflow(ctx workflow.Context, serverID string, steps []mode
 	}
 	
 	result.Success = true
-	logger.Info("Execution workflow completed", "serverID", serverID)
+	logger.Info("Execution workflow completed", "serverID", input.ServerID)
 	
 	return result, nil
 }
