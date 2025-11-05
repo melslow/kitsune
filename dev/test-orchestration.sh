@@ -56,8 +56,8 @@ docker exec kitsune-temporal temporal workflow start \
 echo "Workflow ID: $WORKFLOW_ID"
 
 echo ""
-echo "Waiting for execution to complete (30 seconds)..."
-sleep 30
+echo "Waiting for execution to complete (60 seconds)..."
+sleep 60
 
 echo ""
 echo "Checking execution results..."
