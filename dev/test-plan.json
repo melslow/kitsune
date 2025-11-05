@@ -1,0 +1,46 @@
+{
+  "steps": [
+    {
+      "name": "say-hello",
+      "type": "echo",
+      "params": {
+        "message": "Starting test execution"
+      },
+      "required": true
+    },
+    {
+      "name": "create-test-file",
+      "type": "file_write",
+      "params": {
+        "path": "/tmp/kitsune-test.txt",
+        "content": "Hello from Kitsune!"
+      },
+      "required": true
+    },
+    {
+      "name": "verify-file",
+      "type": "script",
+      "params": {
+        "script": "/bin/cat",
+        "args": ["/tmp/kitsune-test.txt"]
+      },
+      "required": true
+    },
+    {
+      "name": "wait",
+      "type": "sleep",
+      "params": {
+        "duration": 2
+      },
+      "required": false
+    },
+    {
+      "name": "say-goodbye",
+      "type": "echo",
+      "params": {
+        "message": "Test execution completed"
+      },
+      "required": true
+    }
+  ]
+}
