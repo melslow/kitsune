@@ -36,12 +36,14 @@ func main() {
 	registry.Register("script", &handlers.ScriptHandler{})
 	registry.Register("sleep", &handlers.SleepHandler{})
 	registry.Register("file_write", &handlers.FileWriteHandler{})
+	registry.Register("yum_upgrade", &handlers.YumUpgradeHandler{})
 
 	// Create worker listening on server-specific task queue
 	w := worker.New(c, serverID, worker.Options{})
 
-	//Register Workflow
+	//Register Workflows
 	w.RegisterWorkflow(workflows.ServerExecutionWorkflow)
+	w.RegisterWorkflow(workflows.ServerRollbackWorkflow)
 
 	// Register activities
 	stepActivities := activities.NewStepActivities(serverID, registry)

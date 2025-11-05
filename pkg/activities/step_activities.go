@@ -22,13 +22,13 @@ func NewStepActivities(serverID string, registry *StepHandlerRegistry) *StepActi
 }
 
 // ExecuteStep executes a single step using the handler registry
-func (a *StepActivities) ExecuteStep(ctx context.Context, serverID string, step models.StepDefinition) error {
+func (a *StepActivities) ExecuteStep(ctx context.Context, serverID string, step models.StepDefinition) (ExecutionMetadata, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Executing step", "name", step.Name, "type", step.Type)
 	
 	handler, ok := a.registry.Get(step.Type)
 	if !ok {
-		return fmt.Errorf("no handler registered for step type: %s", step.Type)
+		return nil, fmt.Errorf("no handler registered for step type: %s", step.Type)
 	}
 	
 	// Add serverID to params
@@ -41,7 +41,7 @@ func (a *StepActivities) ExecuteStep(ctx context.Context, serverID string, step 
 }
 
 // RollbackStep rolls back a step
-func (a *StepActivities) RollbackStep(ctx context.Context, serverID string, step models.StepDefinition) error {
+func (a *StepActivities) RollbackStep(ctx context.Context, serverID string, step models.StepDefinition, metadata ExecutionMetadata) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Rolling back step", "name", step.Name, "type", step.Type)
 	
@@ -56,5 +56,5 @@ func (a *StepActivities) RollbackStep(ctx context.Context, serverID string, step
 	}
 	step.Params["server_id"] = serverID
 	
-	return handler.Rollback(ctx, step.Params)
+	return handler.Rollback(ctx, step.Params, metadata)
 }

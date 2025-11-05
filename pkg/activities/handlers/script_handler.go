@@ -6,16 +6,18 @@ import (
 	"os/exec"
 	
 	"go.temporal.io/sdk/activity"
+
+	"github.com/melslow/kitsune/pkg/activities"
 )
 
 type ScriptHandler struct{}
 
-func (h *ScriptHandler) Execute(ctx context.Context, params map[string]interface{}) error {
+func (h *ScriptHandler) Execute(ctx context.Context, params map[string]interface{}) (activities.ExecutionMetadata, error) {
 	logger := activity.GetLogger(ctx)
 	
 	script, ok := params["script"].(string)
 	if !ok {
-		return fmt.Errorf("missing or invalid 'script' parameter")
+		return nil, fmt.Errorf("missing or invalid 'script' parameter")
 	}
 	
 	logger.Info("Running script", "script", script)
@@ -36,13 +38,13 @@ func (h *ScriptHandler) Execute(ctx context.Context, params map[string]interface
 	logger.Info("Script completed", "output", string(output))
 	
 	if err != nil {
-		return fmt.Errorf("script failed: %w, output: %s", err, string(output))
+		return nil, fmt.Errorf("script failed: %w, output: %s", err, string(output))
 	}
 	
-	return nil
+	return nil, nil
 }
 
-func (h *ScriptHandler) Rollback(ctx context.Context, params map[string]interface{}) error {
+func (h *ScriptHandler) Rollback(ctx context.Context, params map[string]interface{}, metadata activities.ExecutionMetadata) error {
 	logger := activity.GetLogger(ctx)
 	
 	if rollbackScript, ok := params["rollback_script"].(string); ok {

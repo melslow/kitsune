@@ -1,0 +1,41 @@
+{
+  "servers": [
+    "server-1",
+    "server-2"
+  ],
+  "steps": [
+    {
+      "name": "upgrade-glibc",
+      "type": "yum_upgrade",
+      "params": {
+        "package": "glibc",
+        "version": "2.34-168.0.1.el9_6.24"
+      },
+      "required": true,
+      "continueOnFailure": false
+    },
+    {
+      "name": "verify-upgrade",
+      "type": "script",
+      "params": {
+        "script": "sh",
+        "args": ["-c", "echo 'Simulating version check'; echo 'glibc upgraded to 2.34-168.0.1.el9_6.24 successfully'"]
+      },
+      "required": true
+    },
+    {
+      "name": "complete",
+      "type": "echo",
+      "params": {
+        "message": "Yum upgrade test completed successfully"
+      },
+      "required": true
+    }
+  ],
+  "rolloutStrategy": {
+    "type": "Sequential",
+    "batchSize": 1,
+    "batchDelaySeconds": 5,
+    "maxFailures": 0
+  }
+}

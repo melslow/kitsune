@@ -74,6 +74,8 @@ func parallelExecution(ctx workflow.Context, req models.ExecutionRequest) ([]mod
 	}
 
 	var results []models.ExecutionResult
+	failures := 0
+	
 	for i, future := range futures {
 		var result models.ExecutionResult
 		if err := future.Get(ctx, &result); err != nil {
@@ -84,6 +86,27 @@ func parallelExecution(ctx workflow.Context, req models.ExecutionRequest) ([]mod
 			}
 		}
 		results = append(results, result)
+		
+		if !result.Success {
+			failures++
+		}
+	}
+
+	// Check if max failures exceeded and trigger rollback
+	if req.RolloutStrategy.MaxFailures >= 0 && failures > req.RolloutStrategy.MaxFailures {
+		logger.Error("Max failures exceeded, triggering rollback", "failures", failures, "maxFailures", req.RolloutStrategy.MaxFailures)
+		
+		// Trigger rollback on all servers that were processed
+		for _, result := range results {
+			if result.Success {
+				logger.Info("Triggering rollback for server", "serverID", result.ServerID)
+				if err := triggerServerRollback(ctx, result.ServerID, req.Steps, result); err != nil {
+					logger.Error("Failed to trigger rollback", "serverID", result.ServerID, "error", err)
+				}
+			}
+		}
+		
+		return results, fmt.Errorf("exceeded max failures: %d > %d", failures, req.RolloutStrategy.MaxFailures)
 	}
 
 	return results, nil
@@ -94,6 +117,7 @@ func sequentialExecution(ctx workflow.Context, req models.ExecutionRequest) ([]m
 	logger.Info("Starting sequential execution", "servers", len(req.Servers))
 
 	var results []models.ExecutionResult
+	failures := 0
 
 	for _, serverID := range req.Servers {
 		childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
@@ -118,14 +142,66 @@ func sequentialExecution(ctx workflow.Context, req models.ExecutionRequest) ([]m
 
 		results = append(results, result)
 
-		// Stop on failure if maxFailures is 0
-		if !result.Success && req.RolloutStrategy.MaxFailures == 0 {
-			logger.Error("Sequential execution stopped due to failure", "server", serverID)
-			break
+		if !result.Success {
+			failures++
+		}
+
+		// Check if max failures exceeded
+		if req.RolloutStrategy.MaxFailures >= 0 && failures > req.RolloutStrategy.MaxFailures {
+			logger.Error("Max failures exceeded, triggering rollback", "failures", failures, "maxFailures", req.RolloutStrategy.MaxFailures)
+			
+			// Trigger rollback on all successfully executed servers
+			for _, prevResult := range results {
+				if prevResult.Success {
+					logger.Info("Triggering rollback for server", "serverID", prevResult.ServerID)
+					if err := triggerServerRollback(ctx, prevResult.ServerID, req.Steps, prevResult); err != nil {
+						logger.Error("Failed to trigger rollback", "serverID", prevResult.ServerID, "error", err)
+					}
+				}
+			}
+			
+			return results, fmt.Errorf("exceeded max failures: %d > %d", failures, req.RolloutStrategy.MaxFailures)
 		}
 	}
 
 	return results, nil
+}
+
+func triggerServerRollback(ctx workflow.Context, serverID string, steps []models.StepDefinition, executionResult models.ExecutionResult) error {
+	logger := workflow.GetLogger(ctx)
+	
+	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+		WorkflowID: fmt.Sprintf("rollback-%s", serverID),
+		TaskQueue:  serverID,
+	})
+	
+	// Build executed steps info from the execution result
+	var executedSteps []ExecutedStepInfo
+	for i, stepResult := range executionResult.StepsExecuted {
+		if stepResult.Success && i < len(steps) {
+			executedSteps = append(executedSteps, ExecutedStepInfo{
+				Step:     steps[i],
+				Metadata: nil,
+			})
+		}
+	}
+	
+	// Execute rollback as child workflow
+	logger.Info("Starting rollback workflow", "serverID", serverID, "steps", len(executedSteps))
+	
+	input := RollbackWorkflowInput{
+		ServerID:      serverID,
+		ExecutedSteps: executedSteps,
+	}
+	
+	err := workflow.ExecuteChildWorkflow(childCtx, ServerRollbackWorkflow, input).Get(ctx, nil)
+	if err != nil {
+		logger.Error("Rollback workflow failed", "serverID", serverID, "error", err)
+		return err
+	}
+	
+	logger.Info("Rollback workflow completed", "serverID", serverID)
+	return nil
 }
 
 func rollingExecution(ctx workflow.Context, req models.ExecutionRequest) ([]models.ExecutionResult, error) {
@@ -185,8 +261,20 @@ func rollingExecution(ctx workflow.Context, req models.ExecutionRequest) ([]mode
 		}
 
 		// Check failure threshold
-		if req.RolloutStrategy.MaxFailures > 0 && failures > req.RolloutStrategy.MaxFailures {
-			return allResults, fmt.Errorf("exceeded max failures: %d", failures)
+		if req.RolloutStrategy.MaxFailures >= 0 && failures > req.RolloutStrategy.MaxFailures {
+			logger.Error("Max failures exceeded, triggering rollback", "failures", failures, "maxFailures", req.RolloutStrategy.MaxFailures)
+			
+			// Trigger rollback on all successfully executed servers
+			for _, result := range allResults {
+				if result.Success {
+					logger.Info("Triggering rollback for server", "serverID", result.ServerID)
+					if err := triggerServerRollback(ctx, result.ServerID, req.Steps, result); err != nil {
+						logger.Error("Failed to trigger rollback", "serverID", result.ServerID, "error", err)
+					}
+				}
+			}
+			
+			return allResults, fmt.Errorf("exceeded max failures: %d > %d", failures, req.RolloutStrategy.MaxFailures)
 		}
 
 		// Delay between batches

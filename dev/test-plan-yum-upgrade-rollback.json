@@ -1,0 +1,35 @@
+{
+  "servers": [
+    "server-1",
+    "server-2",
+    "server-3"
+  ],
+  "steps": [
+    {
+      "name": "upgrade-glibc",
+      "type": "yum_upgrade",
+      "params": {
+        "package": "glibc",
+        "version": "2.34-168.0.1.el9_6.24"
+      },
+      "required": true,
+      "continueOnFailure": false
+    },
+    {
+      "name": "verify-upgrades",
+      "type": "script",
+      "params": {
+        "script": "sh",
+        "args": ["-c", "echo 'Verifying upgrades...'; exit 1"]
+      },
+      "required": true,
+      "continueOnFailure": false
+    }
+  ],
+  "rolloutStrategy": {
+    "type": "Rolling",
+    "batchSize": 2,
+    "batchDelaySeconds": 10,
+    "maxFailures": 1
+  }
+}
