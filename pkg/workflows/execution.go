@@ -7,6 +7,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 	
+	"github.com/melslow/kitsune/pkg/activities/handlers"
 	"github.com/melslow/kitsune/pkg/models"
 )
 
@@ -29,6 +30,16 @@ func ServerExecutionWorkflow(ctx workflow.Context, input models.WorkflowInput) (
 	}
 	
 	logger.Info("Starting execution workflow", "serverID", input.ServerID, "steps", len(input.Steps))
+
+	// Validate all steps before execution
+	validator := handlers.NewStepValidator()
+	if err := validator.ValidateSteps(input.Steps); err != nil {
+		logger.Error("Step validation failed", "error", err)
+		result.Success = false
+		result.Error = fmt.Sprintf("step validation failed: %v", err)
+		return result, fmt.Errorf("step validation failed: %w", err)
+	}
+	logger.Info("All steps validated successfully")
 	
 	// Configure activity options
 	activityOptions := workflow.ActivityOptions{

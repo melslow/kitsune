@@ -6,6 +6,7 @@ import (
 
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/melslow/kitsune/pkg/activities/handlers"
 	"github.com/melslow/kitsune/pkg/models"
 )
 
@@ -13,6 +14,14 @@ import (
 func OrchestrationWorkflow(ctx workflow.Context, req models.ExecutionRequest) (*models.OrchestrationResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting orchestration", "servers", len(req.Servers), "strategy", req.RolloutStrategy.Type)
+
+	// Validate all steps before dispatching to workers
+	validator := handlers.NewStepValidator()
+	if err := validator.ValidateSteps(req.Steps); err != nil {
+		logger.Error("Step validation failed", "error", err)
+		return nil, fmt.Errorf("step validation failed: %w", err)
+	}
+	logger.Info("All steps validated successfully")
 
 	result := &models.OrchestrationResult{
 		Results: make([]models.ExecutionResult, 0),

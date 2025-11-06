@@ -8,26 +8,26 @@ import (
 	"go.temporal.io/sdk/activity"
 
 	"github.com/melslow/kitsune/pkg/activities"
+	"github.com/melslow/kitsune/pkg/activities/params"
 )
+
+type FileWriteParams struct {
+	Path    string `json:"path" validate:"required"`
+	Content string `json:"content" validate:"required"`
+}
 
 type FileWriteHandler struct{}
 
-func (h *FileWriteHandler) Execute(ctx context.Context, params map[string]interface{}) (activities.ExecutionMetadata, error) {
+func (h *FileWriteHandler) Execute(ctx context.Context, rawParams map[string]interface{}) (activities.ExecutionMetadata, error) {
+	var p FileWriteParams
+	if err := params.ParseAndValidate(rawParams, &p); err != nil {
+		return nil, err
+	}
+	
 	logger := activity.GetLogger(ctx)
+	logger.Info("Writing file", "path", p.Path)
 	
-	path, ok := params["path"].(string)
-	if !ok {
-		return nil, fmt.Errorf("missing or invalid 'path' parameter")
-	}
-	
-	content, ok := params["content"].(string)
-	if !ok {
-		return nil, fmt.Errorf("missing or invalid 'content' parameter")
-	}
-	
-	logger.Info("Writing file", "path", path)
-	
-	err := os.WriteFile(path, []byte(content), 0644)
+	err := os.WriteFile(p.Path, []byte(p.Content), 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
@@ -36,14 +36,13 @@ func (h *FileWriteHandler) Execute(ctx context.Context, params map[string]interf
 	return nil, nil
 }
 
-func (h *FileWriteHandler) Rollback(ctx context.Context, params map[string]interface{}, metadata activities.ExecutionMetadata) error {
-	logger := activity.GetLogger(ctx)
-	
-	path, ok := params["path"].(string)
-	if !ok {
+func (h *FileWriteHandler) Rollback(ctx context.Context, rawParams map[string]interface{}, metadata activities.ExecutionMetadata) error {
+	var p FileWriteParams
+	if err := params.ParseAndValidate(rawParams, &p); err != nil {
 		return nil
 	}
 	
-	logger.Info("Deleting file for rollback", "path", path)
-	return os.Remove(path)
+	logger := activity.GetLogger(ctx)
+	logger.Info("Deleting file for rollback", "path", p.Path)
+	return os.Remove(p.Path)
 }

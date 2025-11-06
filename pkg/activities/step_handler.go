@@ -6,6 +6,8 @@ import "context"
 type ExecutionMetadata map[string]interface{}
 
 // StepHandler defines the interface all step types must implement
+// Each handler should define a typed parameter struct and use params.ParseAndValidate
+// to ensure only supported parameters are accepted and required fields are present
 type StepHandler interface {
 	Execute(ctx context.Context, params map[string]interface{}) (ExecutionMetadata, error)
 	Rollback(ctx context.Context, params map[string]interface{}, metadata ExecutionMetadata) error

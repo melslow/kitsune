@@ -8,31 +8,27 @@ import (
 	"go.temporal.io/sdk/activity"
 
 	"github.com/melslow/kitsune/pkg/activities"
+	"github.com/melslow/kitsune/pkg/activities/params"
 )
+
+type ScriptParams struct {
+	Script         string   `json:"script" validate:"required"`
+	Args           []string `json:"args,omitempty"`
+	RollbackScript string   `json:"rollback_script,omitempty"`
+}
 
 type ScriptHandler struct{}
 
-func (h *ScriptHandler) Execute(ctx context.Context, params map[string]interface{}) (activities.ExecutionMetadata, error) {
+func (h *ScriptHandler) Execute(ctx context.Context, rawParams map[string]interface{}) (activities.ExecutionMetadata, error) {
+	var p ScriptParams
+	if err := params.ParseAndValidate(rawParams, &p); err != nil {
+		return nil, err
+	}
+	
 	logger := activity.GetLogger(ctx)
+	logger.Info("Running script", "script", p.Script)
 	
-	script, ok := params["script"].(string)
-	if !ok {
-		return nil, fmt.Errorf("missing or invalid 'script' parameter")
-	}
-	
-	logger.Info("Running script", "script", script)
-	
-	// Get args if present
-	var args []string
-	if argsParam, ok := params["args"].([]interface{}); ok {
-		for _, arg := range argsParam {
-			if argStr, ok := arg.(string); ok {
-				args = append(args, argStr)
-			}
-		}
-	}
-	
-	cmd := exec.CommandContext(ctx, script, args...)
+	cmd := exec.CommandContext(ctx, p.Script, p.Args...)
 	output, err := cmd.CombinedOutput()
 	
 	logger.Info("Script completed", "output", string(output))
@@ -44,12 +40,16 @@ func (h *ScriptHandler) Execute(ctx context.Context, params map[string]interface
 	return nil, nil
 }
 
-func (h *ScriptHandler) Rollback(ctx context.Context, params map[string]interface{}, metadata activities.ExecutionMetadata) error {
-	logger := activity.GetLogger(ctx)
+func (h *ScriptHandler) Rollback(ctx context.Context, rawParams map[string]interface{}, metadata activities.ExecutionMetadata) error {
+	var p ScriptParams
+	if err := params.ParseAndValidate(rawParams, &p); err != nil {
+		return nil
+	}
 	
-	if rollbackScript, ok := params["rollback_script"].(string); ok {
-		logger.Info("Running rollback script", "script", rollbackScript)
-		cmd := exec.CommandContext(ctx, rollbackScript)
+	logger := activity.GetLogger(ctx)
+	if p.RollbackScript != "" {
+		logger.Info("Running rollback script", "script", p.RollbackScript)
+		cmd := exec.CommandContext(ctx, p.RollbackScript)
 		return cmd.Run()
 	}
 	
